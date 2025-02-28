@@ -1,17 +1,27 @@
+import sys
 import feedparser
 import requests
 from bs4 import BeautifulSoup
 import os
 import time
 import sqlite3
+import logging
 
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 # URL RSS-ленты
 rss_url = "https://europeanconservative.com/feed"
 
-# Получаем токен вашего бота из переменной окружения
+# Получаем токен бота и идентификатор канала, например,"@European_Conservative" из переменной окружения
 bot_token = os.getenv("BOT_TOKEN")
-# Идентификатор канала
-channel_id = "@European_Conservative"
+channel_id = os.getenv("CHANNEL")
+if bot_token and channel_id:
+    logging.info("Токен бота и ID канала успешно получены")
+else:
+    logging.error("Ошибка: Не удалось получить токен бота или ID канала")
+    sys.exit(0)
+
 
 # Подключение к базе данных SQLite
 conn = sqlite3.connect("sent_titles.db")

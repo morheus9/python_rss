@@ -2,3 +2,5 @@ sent_titles.db
 .vscode
 .env
 .venv
+build
+python_rss.egg-info

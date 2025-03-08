@@ -1,2 +1,4 @@
 sent_titles.db
 .vscode
+.env
+.venv

@@ -10,123 +10,143 @@ import logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
-# URL RSS-ленты
-rss_url = "https://europeanconservative.com/feed"
-
-# Получаем токен бота и идентификатор канала, например,"@European_Conservative" из переменной окружения
-bot_token = os.getenv("BOT_TOKEN")
-channel_id = os.getenv("CHANNEL")
-if bot_token and channel_id:
-    logging.info("Токен бота и ID канала успешно получены")
-else:
-    logging.error("Ошибка: Не удалось получить токен бота или ID канала")
-    sys.exit(0)
 
 
-# Подключение к базе данных SQLite
-conn = sqlite3.connect("sent_titles.db")
-cursor = conn.cursor()
+class DatabaseManager:
+    def __init__(self, db_name):
+        self.conn = sqlite3.connect(db_name)
+        self.cursor = self.conn.cursor()
+        self._init_db()
 
-# Создание таблицы для хранения заголовков, если она не существует
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS sent_titles (
-    title TEXT PRIMARY KEY
-)
-""")
-conn.commit()
+    def _init_db(self):
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sent_titles (
+                title TEXT PRIMARY KEY
+            )
+        """)
+        self.conn.commit()
 
+    def add_title(self, title):
+        self.cursor.execute(
+            "INSERT OR IGNORE INTO sent_titles (title) VALUES (?)", (title,)
+        )
+        self.conn.commit()
 
-# Функция для добавления заголовка в базу данных
-def add_title_to_db(title):
-    cursor.execute("INSERT OR IGNORE INTO sent_titles (title) VALUES (?)", (title,))
-    conn.commit()
+    def title_exists(self, title):
+        self.cursor.execute("SELECT 1 FROM sent_titles WHERE title = ?", (title,))
+        return self.cursor.fetchone() is not None
 
-
-# Функция для проверки, был ли заголовок отправлен
-def title_exists_in_db(title):
-    cursor.execute("SELECT 1 FROM sent_titles WHERE title = ?", (title,))
-    return cursor.fetchone() is not None
-
-
-# Функция для отправки сообщения в Telegram
-def send_message(text):
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    payload = {
-        "chat_id": channel_id,
-        "text": text,
-        "parse_mode": "HTML",  # Используйте HTML для форматирования
-    }
-    response = requests.post(url, json=payload)
-    return response
+    def close(self):
+        self.conn.close()
 
 
-# Функция для получения заголовков сообщений из канала
-def get_recent_messages():
-    url = f"https://api.telegram.org/bot{bot_token}/getUpdates"
-    response = requests.get(url)
-    if response.status_code == 200:
-        updates = response.json().get("result", [])
-        for update in updates:
-            if "message" in update and "text" in update["message"]:
-                # Нормализуем заголовок
-                add_title_to_db(update["message"]["text"].strip().lower())
-    else:
-        print("Ошибка при получении обновлений:", response.json())
+class TelegramBot:
+    def __init__(self, token, channel):
+        self.token = token
+        self.channel = channel
+        self.base_url = f"https://api.telegram.org/bot{self.token}"
+
+    def send_message(self, text):
+        url = f"{self.base_url}/sendMessage"
+        payload = {
+            "chat_id": self.channel,
+            "text": text,
+            "parse_mode": "HTML",
+        }
+        response = requests.post(url, json=payload)
+        return response.status_code == 200
 
 
-# Функция для парсинга RSS-ленты и отправки новых постов
-def check_and_send_posts():
-    # Парсинг RSS-ленты
-    feed = feedparser.parse(rss_url)
+class RSSParser:
+    def __init__(self, url):
+        self.url = url
 
-    # Проверка на наличие ошибок
-    if feed.bozo:
-        print("Ошибка при парсинге RSS-ленты:", feed.bozo_exception)
-        return
-
-    # Обрабатываем записи в RSS-ленте
-    for entry in feed.entries:
-        title = entry.title.strip().lower()  # Нормализуем заголовок
-
-        if not title_exists_in_db(title):  # Проверяем, отправляли ли мы этот пост
-            link = entry.link
-
-            # Используем BeautifulSoup для очистки контента
-            content = entry.get("content", entry.description)
-            if isinstance(content, list):
-                content_text = content[0].value
-            else:
-                content_text = content
-
-            # Очищаем текст от HTML-тегов
-            soup = BeautifulSoup(content_text, "html.parser")
-            clean_text = soup.get_text().strip()
-
-            # Извлекаем только первый параграф
-            first_paragraph = clean_text.split("\n")[0]  # Получаем первый параграф
-
-            # Формируем сообщение
-            message = f"<b>{entry.title}</b>\n\n{first_paragraph}\n\n<a href='{link}'>Read more</a>"
-
-            # Обрезаем сообщение, если оно слишком длинное
-            if len(message) > 4096:
-                message = message[:4096] + "..."  # Обрезаем и добавляем многоточие
-
-            # Отправляем сообщение в Telegram
-            response = send_message(message)
-
-            # Проверяем ответ от Telegram
-            if response.status_code == 200:
-                print("Сообщение успешно отправлено. Ждем 1 час")
-                add_title_to_db(title)  # Добавляем заголовок в базу данных
-            else:
-                print("Ошибка при отправке сообщения:", response.json())
-
-            time.sleep(3600)  # Ждем 1 час (3600 секунд)
+    def parse_feed(self):
+        try:
+            feed = feedparser.parse(self.url)
+            if feed.bozo:
+                logging.error(f"RSS parsing error: {feed.bozo_exception}")
+                return None
+            return feed
+        except Exception as e:
+            logging.error(f"Error fetching RSS feed: {str(e)}")
+            return None
 
 
-# Основной цикл
-while True:
-    get_recent_messages()  # Получаем последние сообщения перед проверкой новых постов
-    check_and_send_posts()
-    time.sleep(3600)  # Ждем 1 час перед следующей проверкой
+class Application:
+    def __init__(self):
+        self._validate_env()
+        self.db = DatabaseManager("sent_titles.db")
+        self.bot = TelegramBot(os.getenv("BOT_TOKEN"), os.getenv("CHANNEL"))
+        self.parser = RSSParser("https://europeanconservative.com/feed")
+
+    def _validate_env(self):
+        required_vars = ["BOT_TOKEN", "CHANNEL"]
+        missing = [var for var in required_vars if not os.getenv(var)]
+        if missing:
+            logging.error(f"Missing environment variables: {', '.join(missing)}")
+            sys.exit(1)
+
+    def _process_content(self, content):
+        if not content:
+            return ""
+
+        if isinstance(content, list):
+            content_text = content[0].value
+        else:
+            content_text = content
+
+        soup = BeautifulSoup(content_text, "html.parser")
+        clean_text = soup.get_text().strip()
+        return clean_text.split("\n")[0] if clean_text else ""
+
+    def process_entry(self, entry):
+        title = entry.title.strip().lower()
+
+        if self.db.title_exists(title):
+            logging.info(f"Skipping existing title: {title}")
+            return False
+
+        content = self._process_content(entry.get("content", entry.get("description")))
+        link = entry.link
+
+        message = f"<b>{entry.title}</b>\n\n{content}\n\n<a href='{link}'>Read more</a>"
+
+        if len(message) > 4096:
+            message = message[:4096] + "..."
+
+        if self.bot.send_message(message):
+            self.db.add_title(title)
+            logging.info(f"Successfully sent: {title}")
+            return True
+
+        logging.warning(f"Failed to send: {title}")
+        return False
+
+    def run(self):
+        logging.info("Starting application")
+        while True:
+            try:
+                feed = self.parser.parse_feed()
+                if not feed:
+                    logging.error("Invalid RSS feed")
+                    time.sleep(600)
+                    continue
+
+                for entry in feed.entries:
+                    self.process_entry(entry)
+
+                logging.info("Cycle completed, sleeping for 1 hour")
+                time.sleep(3600)
+
+            except KeyboardInterrupt:
+                logging.info("Received exit signal, shutting down")
+                break
+            except Exception as e:
+                logging.error(f"Unexpected error: {str(e)}")
+                time.sleep(300)
+
+
+if __name__ == "__main__":
+    app = Application()
+    app.run()

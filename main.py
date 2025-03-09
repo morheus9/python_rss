@@ -78,10 +78,10 @@ class Application:
         self._validate_env()
         self.db = DatabaseManager("sent_titles.db")
         self.bot = TelegramBot(os.getenv("BOT_TOKEN"), os.getenv("CHANNEL"))
-        self.parser = RSSParser("https://europeanconservative.com/feed")
+        self.parser = RSSParser(os.getenv("RSS_URL"))
 
     def _validate_env(self):
-        required_vars = ["BOT_TOKEN", "CHANNEL"]
+        required_vars = ["BOT_TOKEN", "CHANNEL", "RSS_URL"]
         missing = [var for var in required_vars if not os.getenv(var)]
         if missing:
             logging.error(f"Missing environment variables: {', '.join(missing)}")

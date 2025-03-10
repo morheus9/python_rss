@@ -12,4 +12,4 @@ export CHANNEL="@your_channel_name"
 python script.py
 ```
 Post example:
-![Screenshot](https://raw.githubusercontent.com/morheus9/python_rss/main/assets/example.jpg)
+<img src="/assets/example.jpg" width="600" alt="Example">

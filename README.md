@@ -13,4 +13,4 @@ python script.py
 ```
 Post example:
 
-<img src="/assets/example.jpg" width="300" alt="Screenshoot"
+<img src="/assets/example.jpg" width="300" alt="Screenshoot">

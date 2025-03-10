@@ -12,4 +12,5 @@ export CHANNEL="@your_channel_name"
 python script.py
 ```
 Post example:
-<img src="/assets/example.jpg" width="600" alt="Example">
+
+<img src="/assets/example.jpg" width="400" alt="Screenshoot">

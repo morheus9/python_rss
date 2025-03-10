@@ -19,11 +19,13 @@ class DatabaseManager:
         self._init_db()
 
     def _init_db(self):
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS sent_titles (
                 title TEXT PRIMARY KEY
             )
-        """)
+            """
+        )
         self.conn.commit()
 
     def add_title(self, title):

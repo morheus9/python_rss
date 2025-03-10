@@ -11,3 +11,5 @@ export BOT_TOKEN="your_telegram_bot_token"
 export CHANNEL="@your_channel_name"
 python script.py
 ```
+Post example:
+![](https://raw.githubusercontent.com/morheus9/python_rss/main/assets/example.jpg)

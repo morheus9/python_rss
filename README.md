@@ -1,9 +1,7 @@
 # Telegram bot on python, which send rss feed to your group
 Add Bot to your's channel, then create virtual env and install deps:
 ```bash
-uv venv
-source .venv/bin/activate
-uv pip install .
+uv sync
 ```
 Add envs and start:
 ```bash
